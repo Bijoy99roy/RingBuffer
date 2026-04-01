@@ -1,5 +1,3 @@
-mod ringbuffer;
-
 use ringbuffer::RingBuffer;
 use std::{
     sync::{
