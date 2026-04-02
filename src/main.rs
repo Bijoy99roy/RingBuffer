@@ -1,35 +1,39 @@
-use ringbuffer::RingBuffer;
+
+use ringbuffer::RingBuffer; 
 use std::{
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
     thread,
 };
 
 fn main() {
+    // 8 capacity buffer
     let rb = Arc::new(RingBuffer::<i32, 8>::new());
     let done = Arc::new(AtomicBool::new(false));
 
-    let producer = {
-        let rb = rb.clone();
-        let done = done.clone();
+    let mut producers = vec![];
 
-        thread::spawn(move || {
-            for i in 0..100 {
-                // retry if full
+    for producer_id in 0..3 {
+        let rb = rb.clone();
+        
+        producers.push(thread::spawn(move || {
+            for i in 0..10 {
+                // Create a unique message per producer 
+                let msg = (producer_id * 100) + i;
+                
+                // Retry if full
                 loop {
-                    if rb.push(i).is_ok() {
-                        println!("Pushed {}", i);
+                    if rb.push(msg).is_ok() {
+                        println!("Producer {} pushed {}", producer_id, msg);
                         break;
                     }
                     std::hint::spin_loop();
                 }
             }
-
-            done.store(true, Ordering::Release);
-        })
-    };
+        }));
+    }
 
     let consumer = {
         let rb = rb.clone();
@@ -40,6 +44,11 @@ fn main() {
                 if let Some(val) = rb.pop() {
                     println!("Popped {}", val);
                 } else if done.load(Ordering::Acquire) {
+                    // Double-check the buffer is actually empty after done is set to prevent dropping final items
+                    if let Some(val) = rb.pop() {
+                        println!("Popped {}", val);
+                        continue;
+                    }
                     break;
                 } else {
                     std::hint::spin_loop();
@@ -48,6 +57,10 @@ fn main() {
         })
     };
 
-    producer.join().unwrap();
+    for p in producers {
+        p.join().unwrap();
+    }
+
+    done.store(true, Ordering::Release);
     consumer.join().unwrap();
 }
