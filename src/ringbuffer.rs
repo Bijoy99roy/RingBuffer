@@ -51,6 +51,7 @@ impl<T, const CAP: usize> RingBuffer<T, CAP> {
                         let buffer = &mut *self.buffer.get();
                         buffer[head & (CAP - 1)].write(value);
                     }
+                    self.head.0.store(head.wrapping_add(1), Ordering::Release);
                     return Ok(());
                 }
                 Err(current_head) => {
@@ -59,7 +60,7 @@ impl<T, const CAP: usize> RingBuffer<T, CAP> {
                 }
             }
 
-            self.head.0.store(head.wrapping_add(1), Ordering::Release);
+            
         }
     }
 
